@@ -53,6 +53,18 @@ export function createRouteProxy(route: RouteConfig) {
           const val = expressReq.headers[h];
           if (val) proxyReq.setHeader(h, val);
         });
+
+        // ── Re-write the body ──────────────────────────────────────────────
+        // express.json() consumes the raw stream and stores the parsed result
+        // in req.body. By the time http-proxy-middleware runs, the stream is
+        // already empty, so POST/PUT/PATCH bodies would be lost upstream.
+        // We re-serialise req.body and write it directly to the proxy request.
+        if (expressReq.body && Object.keys(expressReq.body).length > 0) {
+          const bodyData = JSON.stringify(expressReq.body);
+          proxyReq.setHeader('Content-Type', 'application/json');
+          proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+          proxyReq.write(bodyData);
+        }
       },
 
       error: (_err, _req, res) => {

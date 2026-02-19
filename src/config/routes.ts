@@ -53,6 +53,12 @@ export const routes: RouteConfig[] = [
     public: true,
   },
 
+  {
+    path: '/api/v1/plans/*',
+    target: 'BACKEND_SERVICE_URL',
+    public: true,
+  },
+
   // ─── Private routes (JWT required) ──────────────────────────
   {
     path: '/api/v1/users',
@@ -72,7 +78,7 @@ export const routes: RouteConfig[] = [
   {
     path: '/api/v1/subscription/*',
     target: 'BACKEND_SERVICE_URL',
-    public: false,
+    public: true,
   },
   {
     path: '/api/v1/access-control',
