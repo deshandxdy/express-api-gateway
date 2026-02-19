@@ -66,6 +66,31 @@ npm start
 
 The service is configured in the root `docker-compose.yml`.
 
+```yaml
+  ymr-api-gateway:
+    build:
+      context: ./ymr-api-gateway
+      dockerfile: Dockerfile.dev
+    container_name: ymr-api-gateway
+    ports:
+      - "4003:4003"
+    command: npm run dev
+    volumes:
+      - ./ymr-api-gateway:/usr/src/app
+      - /usr/src/app/node_modules
+    environment:
+      PORT: 4003
+      NODE_ENV: development
+      COGNITO_REGION: ap-southeast-1
+      COGNITO_USER_POOL_ID: ap-southeast-1_7WFAeXRe3
+      COGNITO_CLIENT_ID: 1c3mvfbj1k8uriju5bl0oebf20
+      BACKEND_SERVICE_URL: http://ymr-backend-service:4002
+    networks:
+      - ymr-net
+    depends_on:
+      - ymr-backend-service
+```
+
 ```bash
 # Start the gateway and backend
 docker-compose up -d --build ymr-api-gateway
