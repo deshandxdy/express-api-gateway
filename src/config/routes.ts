@@ -1,93 +1,75 @@
 /**
  * Route Registry
  *
- * Define every route the gateway should handle here.
- * Any request NOT listed here will be rejected with a descriptive error
- * telling the caller to register the route first.
+ * Define ONLY the public routes here (routes that bypass JWT verification).
+ * ALL OTHER routes require a valid Cognito JWT in the Authorization header.
+ *
+ * This is a "deny-by-default" security model:
+ *  - If a route path matches a pattern in `publicRoutes` → skip JWT verification
+ *  - If a route path does NOT match → require JWT validation before proxying
+ *  - No need to pre-register routes; they're checked dynamically at request time
  *
  * Fields:
- *  - path     : Express-compatible path pattern (supports wildcards)
- *  - target   : env var key whose value is the upstream base URL
- *  - public   : if true, bypass JWT verification
- *  - methods  : optional allowlist of HTTP methods (omit = allow all)
+ *  - path   : Express-compatible path pattern (supports wildcards)
+ *  - target : Currently unused (always proxies to BACKEND_SERVICE_URL)
  */
 
 export interface RouteConfig {
   /** Express-compatible path pattern, e.g. "/api/v1/users/*" */
   path: string;
-  /** The env variable key pointing to the upstream base URL */
+  /** The env variable key pointing to the upstream base URL (currently unused) */
   target: string;
-  /** Skip JWT verification when true */
-  public: boolean;
   /** Restrict to specific HTTP verbs; omit to allow all */
   methods?: string[];
 }
 
-export const routes: RouteConfig[] = [
-  // ─── Public routes ──────────────────────────────────────────
+/**
+ * Public routes that bypass JWT verification.
+ *
+ * All requests not matching these patterns will require JWT authentication.
+ * No need to register every endpoint here – only define what should be public.
+ */
+export const publicRoutes: RouteConfig[] = [
+  // ─── Health checks ──────────────────────────────────────────
   {
     path: '/api/v1/health',
     target: 'BACKEND_SERVICE_URL',
-    public: true,
   },
+
+  // ─── Authentication endpoints ────────────────────────────────
   {
-    // Auth endpoints: login, register, refresh, forgot-password, etc.
-    // Matches both /api/v1/auth and /api/v1/auth/login etc.
     path: '/api/v1/auth',
     target: 'BACKEND_SERVICE_URL',
-    public: true,
   },
   {
     path: '/api/v1/auth/*',
     target: 'BACKEND_SERVICE_URL',
-    public: true,
   },
+
+  // ─── Stripe webhooks & public pricing ───────────────────────
   {
     path: '/api/v1/stripe',
     target: 'BACKEND_SERVICE_URL',
-    public: true,
   },
   {
     path: '/api/v1/stripe/*',
     target: 'BACKEND_SERVICE_URL',
-    public: true,
   },
 
+  // ─── Public pricing information ─────────────────────────────
   {
     path: '/api/v1/plans/*',
     target: 'BACKEND_SERVICE_URL',
-    public: true,
   },
 
-  // ─── Private routes (JWT required) ──────────────────────────
+  // ─── User registration ─────────────────────────────────────────
   {
-    path: '/api/v1/users',
+    path: '/api/v1/users/register',
     target: 'BACKEND_SERVICE_URL',
-    public: false,
   },
+
   {
-    path: '/api/v1/users/*',
+    path: '/ /api/v1/subscription/plans/country/*',
     target: 'BACKEND_SERVICE_URL',
-    public: false,
-  },
-  {
-    path: '/api/v1/subscription',
-    target: 'BACKEND_SERVICE_URL',
-    public: false,
-  },
-  {
-    path: '/api/v1/subscription/*',
-    target: 'BACKEND_SERVICE_URL',
-    public: true,
-  },
-  {
-    path: '/api/v1/access-control',
-    target: 'BACKEND_SERVICE_URL',
-    public: false,
-  },
-  {
-    path: '/api/v1/access-control/*',
-    target: 'BACKEND_SERVICE_URL',
-    public: false,
   },
 ];

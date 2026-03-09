@@ -2,25 +2,24 @@ import express, { Application } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import { createLoggerMiddleware } from './middleware/logger.middleware';
-import { authMiddleware } from './middleware/auth.middleware';
 import {
-  createRouteProxy,
-  unregisteredRouteHandler,
+  dynamicRouteHandler,
 } from './middleware/proxy.middleware';
 import { errorMiddleware } from './middleware/error.middleware';
-import { routes } from './config/routes';
+import { publicRoutes } from './config/routes';
 
 /**
  * Build and configure the Express application.
  *
- * Route registration order matters:
+ * Route resolution order:
  *  1. Global middleware (helmet, cors, logger)
- *  2. Each registered route  → optional auth guard → proxy
- *  3. Catch-all for unregistered routes (must come after all route registrations)
- *  4. Global error handler (must be last)
+ *  2. Dynamic catch-all handler → checks if public/private → proxies
+ *  3. Global error handler (must be last)
  */
 export function createApp(): Application {
   const app = express();
+
+  console.log('[App] Initializing API Gateway...');
 
   // ─── Global middleware ────────────────────────────────────────────────────
   app.use(helmet());
@@ -37,55 +36,29 @@ export function createApp(): Application {
   // Parse JSON bodies so error handlers can inspect body if needed
   app.use(express.json());
 
-  // ─── Route registration ───────────────────────────────────────────────────
-  for (const route of routes) {
-    const proxy = createRouteProxy(route);
-    const pathPattern = route.path;
-
-    if (route.public) {
-      /**
-       * Public route: skip JWT verification, proxy directly.
-       *
-       * We intentionally do NOT call next() after the proxy — the proxy
-       * itself ends the response lifecycle.
-       */
-      app.all(pathPattern, proxy);
-
-      console.log(
-        `[Gateway] ✅ PUBLIC   ${pathPattern.padEnd(40)} → ${process.env[route.target]}`,
-      );
-    } else {
-      /**
-       * Private route: auth middleware first, then proxy.
-       *
-       * authMiddleware calls next() only on success, so the proxy only
-       * fires when the JWT is valid.
-       */
-      app.all(
-        pathPattern,
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
-        async (req, res, next) => {
-          await authMiddleware(req, res, next);
-        },
-        proxy,
-      );
-
-      console.log(
-        `[Gateway] 🔒 PRIVATE  ${pathPattern.padEnd(40)} → ${process.env[route.target]}`,
-      );
-    }
-  }
-
-  // ─── Catch-all: route not registered ─────────────────────────────────────
+  // ─── Dynamic route handler ─────────────────────────────────────────────────
   /**
-   * Any path that did not match a registered route arrives here.
-   * Returns a 404 with a precise message directing the developer to
-   * register the route in src/config/routes.ts.
+   * Catch-all middleware that handles any request path.
+   *
+   * Checks if the path matches a public route:
+   *  - If yes → proxy without JWT validation
+   *  - If no → validate JWT, then proxy
    */
-  app.use(unregisteredRouteHandler);
+  const publicRoutePatterns = publicRoutes.map((r) => r.path);
+
+  console.log(
+    `[App] Configured ${publicRoutePatterns.length} public routes:`,
+  );
+  publicRoutePatterns.forEach((pattern) => {
+    console.log(`      → ${pattern}`);
+  });
+
+  app.use(dynamicRouteHandler(publicRoutePatterns));
 
   // ─── Global error handler (must be last) ─────────────────────────────────
   app.use(errorMiddleware);
+
+  console.log('[App] Gateway initialized successfully');
 
   return app;
 }
